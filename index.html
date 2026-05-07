@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gravity Switcher - Makys Edition</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #050505;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #game-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        canvas {
+            border: 3px solid #00ffcc;
+            background-color: #000;
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.15);
+        }
+
+        #sidebar {
+            width: 250px;
+            background: rgba(20, 20, 20, 0.95);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            max-height: 500px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2 { color: #00ffcc; margin-top: 0; font-size: 18px; text-transform: uppercase; border-bottom: 2px solid #00ffcc; padding-bottom: 8px; }
+
+        #leaderboard-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 15px;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #222;
+            font-size: 14px;
+        }
+
+        .current-player { color: #00ffcc; font-weight: bold; text-shadow: 0 0 5px #00ffcc; }
+
+        #ui-top { text-align: center; width: 100%; margin-bottom: 10px; }
+
+        #diss-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444;
+            font-weight: 900;
+            font-size: 32px;
+            text-shadow: 3px 3px 0px #000;
+            display: none;
+            text-align: center;
+            width: 80%;
+            z-index: 10;
+            text-transform: uppercase;
+        }
+
+        #instructions {
+            margin-top: 15px;
+            background: rgba(20, 20, 20, 0.8);
+            padding: 12px;
+            border-radius: 8px;
+            width: 800px;
+            text-align: center;
+            border-bottom: 2px solid #00ffcc;
+            box-sizing: border-box;
+        }
+
+        #admin-zone { display: none; margin-top: 15px; border-top: 1px dashed #555; padding-top: 15px; text-align: center; }
+        .btn-reset { background: #661111; color: #ffaaaa; border: 1px solid #882222; padding: 8px; font-size: 11px; cursor: pointer; text-transform: uppercase; border-radius: 4px; width: 100%; font-weight: bold; }
+        
+        #meme-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            z-index: 100;
+            border: 5px solid white;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-top">
+        <div style="font-size: 40px; font-weight: 900; letter-spacing: 3px; text-shadow: 2px 2px 10px rgba(0,255,204,0.5);">SCORE: <span id="current-score">0</span></div>
+        <div id="player-tag" style="color: #00ffcc; font-size: 14px; margin-top: 5px;">Hráč: ---</div>
+    </div>
+
+    <div id="game-container">
+        <div style="position: relative;">
+            <canvas id="gameCanvas"></canvas>
+            <div id="diss-message"></div>
+        </div>
+
+        <div id="sidebar">
+            <h2>🏆 TOP 10</h2>
+            <div id="leaderboard-list"></div>
+            
+            <div id="admin-zone">
+                <p style="font-size: 11px; color: #ffcc00; margin-bottom: 8px;">ADMIN PANEL (Makys)</p>
+                <button class="btn-reset" onclick="clearLeaderboard()">⚠️ RESET REBRÍČKA</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="instructions">
+        <p style="margin: 0; font-size: 15px;">🕹️ <b>Cez MEDZERNÍK/KLIK prepínaš gravitáciu a držaním plachtíš – vyhni sa červeným blokom!</b></p>
+    </div>
+
+    <img id="meme-overlay" src="https://i.imgflip.com/30zz5g.jpg" alt="Meme">
+
+    <script>
+        // --- SEM VLOŽ SVOJ WEBHOOK ---
+        const DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1502038672252338396/XwAQwNYh2xbR7_sEeGn0CLOhiFtSyG8D_CwNU7N50blTkd8wl2DNbd9YupRQ5NMlcT8Q"; 
+
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreDisp = document.getElementById("current-score");
+        const playerTag = document.getElementById("player-tag");
+        const dissDisp = document.getElementById("diss-message");
+        const memeImg = document.getElementById("meme-overlay");
+        const leaderboardList = document.getElementById("leaderboard-list");
+        const adminZone = document.getElementById("admin-zone");
+
+        canvas.width = 800;
+        canvas.height = 500;
+
+        // Meno a Admin kontrola
+        let playerName = localStorage.getItem("gravityPlayerName");
+        if (!playerName) {
+            playerName = prompt("Zadaj meno:") || "Anonym";
+            localStorage.setItem("gravityPlayerName", playerName);
+        }
+        playerTag.innerText = "Hráč: " + playerName;
+        if (playerName.toLowerCase() === "makys") { adminZone.style.display = "block"; }
+
+        let localScores = JSON.parse(localStorage.getItem("gravityLeaderboard")) || [];
+
+        function updateLeaderboard(newScore) {
+            let isNewPersonalBest = false;
+            const existingEntry = localScores.find(item => item.name === playerName);
+            
+            if (existingEntry) {
+                if (newScore > existingEntry.score) {
+                    existingEntry.score = newScore;
+                    isNewPersonalBest = true;
+                }
+            } else {
+                localScores.push({ name: playerName, score: newScore });
+                isNewPersonalBest = true;
+            }
+
+            localScores.sort((a, b) => b.score - a.score);
+            localScores = localScores.slice(0, 10);
+            localStorage.setItem("gravityLeaderboard", JSON.stringify(localScores));
+            renderLeaderboard();
+            
+            // Discord sprava IBA pri prekonaní osobného rekordu
+            if (isNewPersonalBest && newScore > 0) {
+                sendToDiscord(newScore);
+            }
+        }
+
+        function renderLeaderboard() {
+            leaderboardList.innerHTML = localScores.map((s, i) => 
+                `<div class="leaderboard-item ${s.name === playerName ? 'current-player' : ''}">
+                    <span>${i+1}. ${s.name}</span><span>${s.score}</span>
+                </div>`
+            ).join('');
+        }
+
+        function clearLeaderboard() {
+            if(confirm("Zmazať všetko?")) {
+                localStorage.removeItem("gravityLeaderboard");
+                localScores = [];
+                renderLeaderboard();
+            }
+        }
+        renderLeaderboard();
+
+        const dissy = [
+            "Tvoja babka by to zahrala lepšie.", "To bolo schválne? Dúfam.", "Skús radšej pexeso.", 
+            "Videl som korytnačky s lepším postrehom.", "Kámo, tvoj skill je v mínuse.", 
+            "Aj vypnutý monitor má väčšiu šancu.", "Tvoj reakčný čas sa meria v dňoch.",
+            "Niekto tu potrebuje pomocné kolieska.", "To nebol lag, to si bol ty.", 
+            "Tento výkon bol tragédia.", "Skús vypnúť a zapnúť mozog.",
+            "Tvoje skóre je nižšie ako tvoje IQ.", "Gratulujem k najrýchlejšej smrti.",
+            "Bodaj by ti stiahlo Windows Update.", "Vymeň si ruky, tieto sú ľavé.",
+            "Ani tvoja mama ťa takto nezhodila.", "Si v tom taký dobrý, ako ja v plávaní.",
+            "Daj si pauzu, tvoje ego krváca.", "Máš postreh ako mrazená pizza.",
+            "Keby blbosť nadnášala, letíš.", "Tvoje prsty sú zo želatíny.",
+            "Prosím, prestaň. Bolí ma to vykresľovať.", "Máš viac smrti ako bodov."
+        ];
+
+        let gameActive = false;
+        let isHolding = false;
+        let score = 0;
+        let gameSpeed = 8;
+        let gravityForce = 0.8;
+        let frameCount = 0;
+
+        const player = { x: 100, y: 250, w: 30, h: 30, dy: 0, onCeiling: false };
+        let obstacles = [];
+
+        function createObstacle() {
+            const rand = Math.random();
+            if (rand < 0.35) {
+                const gap = 115;
+                const mid = 150 + Math.random() * 200;
+                obstacles.push({ x: canvas.width, y: 0, w: 50, h: mid - gap/2, id: frameCount });
+                obstacles.push({ x: canvas.width, y: mid + gap/2, w: 50, h: canvas.height, id: frameCount });
+            } else {
+                const h = 150 + Math.random() * 200;
+                const isTop = Math.random() > 0.5;
+                obstacles.push({ x: canvas.width, y: isTop ? 0 : canvas.height - h, w: 40, h: h, id: frameCount });
+            }
+        }
+
+        function sendToDiscord(finalScore) {
+            if (DISCORD_WEBHOOK_URL.includes("TU_VLOZ_SVOJ")) return;
+            const params = {
+                username: "Gravity Records",
+                content: `🔥 **NOVÝ REKORD!** \n**${playerName}** dal nové skóre **${finalScore}**. Akože FR Big Boss! 👑`
+            };
+            fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { 'Content-type': 'application/json' }, body: JSON.stringify(params) });
+        }
+
+        function resetGame() {
+            score = 0; scoreDisp.innerText = score;
+            gameSpeed = 8; player.y = 250; player.dy = 0;
+            obstacles = []; gameActive = true;
+            dissDisp.style.display = "none"; memeImg.style.display = "none";
+            frameCount = 0;
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            if (isHolding) player.dy *= 0.85;
+            else player.dy += player.onCeiling ? -gravityForce : gravityForce;
+
+            player.y += player.dy;
+            if (player.y + player.h > canvas.height) { player.y = canvas.height - player.h; player.dy = 0; }
+            if (player.y < 0) { player.y = 0; player.dy = 0; }
+
+            if (frameCount % 55 === 0) createObstacle();
+
+            if (score >= 15 && Math.random() < 0.003 && memeImg.style.display === "none") {
+                memeImg.style.display = "block";
+                setTimeout(() => { memeImg.style.display = "none"; }, 1000);
+            }
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].x -= gameSpeed;
+
+                if (player.x < obstacles[i].x + obstacles[i].w && player.x + player.w > obstacles[i].x &&
+                    player.y < obstacles[i].y + obstacles[i].h && player.y + player.h > obstacles[i].y) {
+                    
+                    gameActive = false;
+                    dissDisp.innerText = dissy[Math.floor(Math.random() * dissy.length)];
+                    dissDisp.style.display = "block";
+                    updateLeaderboard(score);
+                }
+
+                if (obstacles[i].x + obstacles[i].w < 0) {
+                    const currentId = obstacles[i].id;
+                    obstacles.splice(i, 1);
+                    if (!obstacles.some(o => o.id === currentId)) {
+                        score++;
+                        scoreDisp.innerText = score;
+                        gameSpeed += 0.05;
+                    }
+                }
+            }
+            frameCount++;
+        }
+
+        function draw() {
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#00ffcc";
+            ctx.shadowBlur = isHolding ? 25 : 5;
+            ctx.shadowColor = "#00ffcc";
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "#ff4444";
+            obstacles.forEach(ob => ctx.fillRect(ob.x, ob.y, ob.w, ob.h));
+        }
+
+        window.addEventListener("mousedown", (e) => {
+            if(e.target.tagName === "BUTTON") return;
+            if (!gameActive) resetGame();
+            else { isHolding = true; player.onCeiling = !player.onCeiling; }
+        });
+        window.addEventListener("mouseup", () => isHolding = false);
+        window.addEventListener("keydown", (e) => {
+            if (e.code === "Space") {
+                e.preventDefault();
+                if (!gameActive) resetGame();
+                else { if (!isHolding) player.onCeiling = !player.onCeiling; isHolding = true; }
+            }
+        });
+        window.addEventListener("keyup", (e) => { if (e.code === "Space") isHolding = false; });
+
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        loop();
+    </script>
+</body>
+</html>
