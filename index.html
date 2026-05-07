@@ -241,13 +241,49 @@
         }
 
         function sendToDiscord(finalScore) {
-            if (DISCORD_WEBHOOK_URL.includes("TU_VLOZ_SVOJ")) return;
-            const params = {
-                username: "Gravity Records",
-                content: `🔥 **NOVÝ REKORD!** \n**${playerName}** dal nové skóre **${finalScore}**. Akože FR Big Boss! 👑`
-            };
-            fetch(DISCORD_WEBHOOK_URL, { method: "POST", headers: { 'Content-type': 'application/json' }, body: JSON.stringify(params) });
-        }
+    if (DISCORD_WEBHOOK_URL.includes("https://discord.com/api/webhooks/1502038672252338396/XwAQwNYh2xbR7_sEeGn0CLOhiFtSyG8D_CwNU7N50blTkd8wl2DNbd9YupRQ5NMlcT8Q")) return;
+
+    // Odkaz na tvoju hru
+    const gameLink = "https://emedzigua.github.io/gravity-boss/";
+
+    // 20 rôznych verzií správ
+    const bossSpravy = [
+        `🔥 **NOVÝ REKORD!** **${playerName}** dal skóre **${finalScore}**. Akože FR Big Boss! 👑`,
+        `🚀 **${playerName}** práve vyletel na skóre **${finalScore}**! Kto ho zostrelí? 🎯`,
+        `💎 **${playerName}** (skóre: **${finalScore}**) ukazuje, ako sa to robí. Čistý skill!`,
+        `⚡ Pozor! **${playerName}** prekonal sám seba. Nový rekord: **${finalScore}**!`,
+        `🏆 Trón má nového majiteľa! **${playerName}** nahrall **${finalScore}** bodov.`,
+        `👺 **${playerName}** sa s tým nepára! Nový osobný rekord **${finalScore}**.`,
+        `🌟 **${playerName}** práve predviedol životný výkon: **${finalScore}** bodov!`,
+        `🥵 Je tu horúco! **${playerName}** prepisuje tabuľky na **${finalScore}**.`,
+        `🤖 System update: **${playerName}** zvýšil svoj výkon na **${finalScore}**.`,
+        `🎮 GGG! **${playerName}** dal práve **${finalScore}**. Skús to aj ty!`,
+        `👑 **${playerName}** ovládol gravitáciu! Skóre: **${finalScore}**.`,
+        `🌠 Hviezda sa zrodila! **${playerName}** má nový rekord **${finalScore}**.`,
+        `🛹 **${playerName}** si preletel pre skóre **${finalScore}**. Chill a skill.`,
+        `🐉 Drak sa prebudil! **${playerName}** dal **${finalScore}** a pľuje oheň.`,
+        `🧊 **${playerName}** má nervy zo železa! Nový rekord: **${finalScore}**.`,
+        `💥 BOOM! **${playerName}** odpálil bombu s hodnotou **${finalScore}**.`,
+        `🧿 **${playerName}** vidí budúcnosť a v nej má skóre **${finalScore}**.`,
+        `🦾 Toto nie je človek! **${playerName}** nahral **${finalScore}**.`,
+        `🌈 **${playerName}** preletel cez prekážky ako nič. Skóre: **${finalScore}**.`,
+        `💀 **${playerName}** vstal z mŕtvych a dal rekord **${finalScore}**!`
+    ];
+
+    // Výber náhodnej správy
+    const nahodnaSprava = bossSpravy[Math.floor(Math.random() * bossSpravy.length)];
+
+    const params = {
+        username: "Gravity Boss Tracker",
+        content: `${nahodnaSprava}\n\n🕹️ **Zabav tu:** ${https://emedzigua.github.io/gravity-boss/}`
+    };
+
+    fetch(DISCORD_WEBHOOK_URL, { 
+        method: "POST", 
+        headers: { 'Content-type': 'application/json' }, 
+        body: JSON.stringify(params) 
+    });
+}
 
         function resetGame() {
             score = 0; scoreDisp.innerText = score;
